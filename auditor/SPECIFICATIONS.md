@@ -1,10 +1,10 @@
 
-#1. The Sentinel Auditor: Job Description (The Spec)**Role:** Autonomous Security Analyst Agent
+# 1. The Sentinel Auditor: Job Description (The Spec)**Role:** Autonomous Security Analyst Agent
 **Architecture:** "Three Brains" (Architect, Critique, Assembler)
 **Trigger:** Asynchronous event (Database Insert / Message Queue)
 **Latency Requirement:** None (Background Process)
 
-###The "Three Brains" WorkflowWhen a new `audit_log` arrives, the Auditor performs these steps:
+### The "Three Brains" WorkflowWhen a new `audit_log` arrives, the Auditor performs these steps:
 
 1. **🧠 The Architect (Investigator)**
 * **Input:** The `audit_log` JSON.
@@ -27,7 +27,7 @@
 
 ---
 
-#2. The Immutable Contract (The Payload)This is the exact JSON object your API must construct. This is the "common language" between your Bank/Sentinel API and the Auditor.
+# 2. The Immutable Contract (The Payload)This is the exact JSON object your API must construct. This is the "common language" between your Bank/Sentinel API and the Auditor.
 
 ```json
 {
@@ -96,9 +96,10 @@
 
 ---
 
-#3. How to Send the Attributes (The Transport)You do **not** need a separate Kafka queue. You are using Supabase, so you will use **Table-Based Queueing**.
+# 3. How to Send the Attributes (The Transport)
+You do **not** need a separate Kafka queue. You are using Supabase, so you will use **Table-Based Queueing**.
 
-###Phase A: Source Mapping (Where do I get the data?)In your Next.js/NestJS API, you gather data from 3 sources to build the JSON.
+### Phase A: Source Mapping (Where do I get the data?)In your Next.js/NestJS API, you gather data from 3 sources to build the JSON.
 
 | JSON Section | Source in Code | Example Code Access |
 | --- | --- | --- |
@@ -108,7 +109,7 @@
 | `action` | Request Body | `req.body.amount`, `req.body.recipient` |
 | `sentinel` | **Internal API Call** | `await sentinelModel.predict(req.body.keystrokes)` |
 
-###Phase B: The Sender Code (The "Hot Path")*Location:* Your Banking API Controller (e.g., `transfer.ts`).
+### Phase B: The Sender Code (The "Hot Path")*Location:* Your Banking API Controller (e.g., `transfer.ts`).
 
 ```typescript
 // 1. Gather Data (0ms latency impact)
@@ -156,7 +157,7 @@ return { success: true };
 
 ```
 
-###Phase C: The Receiver (The "Cold Path")*Location:* Your RAG Agent (Python script running continuously or Serverless Function).
+### Phase C: The Receiver (The "Cold Path")*Location:* Your RAG Agent (Python script running continuously or Serverless Function).
 
 You listen to the database insert. This is your "Queue".
 
@@ -184,7 +185,8 @@ supabase.table('audit_logs').on('INSERT', handle_new_log).subscribe()
 
 ```
 
-###Summary1. **Bank API** builds the JSON.
+### Summary
+1. **Bank API** builds the JSON.
 2. **Bank API** saves JSON to `audit_logs` table.
 3. **Auditor Agent** sees the new row (via Realtime) and wakes up.
 4. **Auditor Agent** thinks, checks policy, and updates the row with a verdict.
