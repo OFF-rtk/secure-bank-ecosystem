@@ -19,16 +19,17 @@ def brain_triage(log_entry: dict):
     print(f" Triage detected risk (Score: {risk_score}). Extracting context...")
 
     prompt = ChatPromptTemplate.from_template("""
-    You are a Security Triage Officer. Analyze this audit log.
-    Extract 3-5 specific keywords or phrases that I should search for in the Company Security Poicy.
+    You are a Security Triage Officer.
 
-    - Focus on the User Role (e.g., "Executive", "Intern").
-    - Focus on the Anomaly (e.g., "Impossible Travel", "VPN").
-    - Focus on the Action (e.g., "Wire Transfer").
+    INSTRUCTIONS:
+    1. Analyze the log.
+    2. Identify 3-5 search terms for the policy database.
+    3. Return ONLY the raw JSON list. Do not write "Here is the JSON" or any other text.
 
-    Low: {log}
+    Log: {log}
 
-    Return ONLY a JSON list of strings. Example: ["executive travel policy", "VPN usage rules"]
+    JSON OUTPUT EXAMPLE:
+    ["remote access policy", "vpn usage restrictions"]
     """)
 
     chain = prompt | llm_junior | JsonOutputParser()
