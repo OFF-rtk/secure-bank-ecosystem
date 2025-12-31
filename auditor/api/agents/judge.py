@@ -38,6 +38,8 @@ def brain_judge(log_entry: dict, policies: list):
 
     if verdict["confidence"] >= 90:
         print(f" Junior is confident ({verdict['confidence']}%). Verdict: {verdict['decision']}")
+
+        verdict["model_used"] = "Junior Analyst"
         return verdict
 
     print(f" Escalating to CISO (Junior confidence only {verdict['confidence']}%)...")
@@ -65,6 +67,8 @@ def brain_judge(log_entry: dict, policies: list):
         "policies": context_str,
         "junior_opinion": verdict["reasoning"]
     })
+
+    final_verdict["model_used"] = "CISO"
 
     print(f" CISO Verdict: {final_verdict['decision']}")
     return final_verdict

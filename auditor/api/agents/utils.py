@@ -33,3 +33,20 @@ llm_senior = ChatGroq(
     max_tokens=1024,
     api_key=GROQ_API_KEY
 )
+
+def log_trace(event_id: str, role: str, status: str, output: dict):
+    """
+    Writes a 'Thought' to the Supabase agent_traces table.
+    This triggers the Realtime update on the Dashboard.
+    """
+    try:
+        data = {
+            "event_id": event_id,
+            "agent_role": role,
+            "status": status,
+            "output": output
+        }
+        supabase.table("agent_traces").insert(data).execute()
+        print(f" TRACE SENT: [{role}] {status}")
+    except Exception as e:
+        print(f" Failed to log trace: {e}")
