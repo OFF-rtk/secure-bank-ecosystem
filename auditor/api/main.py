@@ -32,43 +32,62 @@ async def process_audit_log(log_entry: dict):
 
     log_trace(event_id, "TRIAGE", "THINKING", {"msg": "Analyzing intent..."})
 
-    plan = brain_triage(log_entry)
+    try:
+        plan = brain_triage(log_entry)
 
-    if plan["status"] == "SAFE":
-        log_trace(event_id, "TRIAGE", "COMPLETED", {"risk": "LOW", "reason": plan.get("reason")})
-        print(f" {user_id} is SAFE. (Architect cleared it)")
+        if plan["status"] == "SAFE":
+            log_trace(event_id, "TRIAGE", "COMPLETED", {"risk": "LOW", "reason": plan.get("reason")})
+            print(f" {user_id} is SAFE. (Architect cleared it)")
+            return
+
+ 
+        log_trace(event_id, "TRIAGE", "COMPLETED", {
+            "risk": "HIGH",
+            "search_vectors": plan.get("search_terms")
+        })
+
+    except Exception as e:
+        log_trace(event_id, "TRIAGE", "FAILED", {"error": str(e)})
+        print(f" TRAIGE: Failed to analyze intent. Error: {e}")
         return
-
-    log_trace(event_id, "TRIAGE", "COMPLETED", {
-        "risk": "HIGH",
-        "search_vectors": plan.get("search_terms")
-    })
 
     log_trace(event_id, "INTEL", "THINKING", {"msg": "Searching Vector DB..."})
 
-    policies = brain_intel(plan["search_terms"])
+    try:
+        policies = brain_intel(plan["search_terms"])
 
-    log_trace(event_id, "INTEL", "COMPLETED", {
-        "found_docs": len(policies),
-        "top_policy": policies[0][:50] + "..."
-    })
+        log_trace(event_id, "INTEL", "COMPLETED", {
+            "found_docs": len(policies),
+            "top_policy": policies[0][:50] + "..."
+        })
+
+    except Exception as e:
+        log_trace(event_id, "INTEL", "FAILED", {"error": str(e)})
+        print(f" INTEL: Failed to search vector DB. Error: {e}")
+        return
 
     log_trace(event_id, "JUDGE", "THINKING", {"msg": "Deliberating..."})
 
-    decision = brain_judge(log_entry, policies)
+    try:
+        decision = brain_judge(log_entry, policies)
     
-    model_tag = decision.get("model_used", "Junior Analayst")
+        model_tag = decision.get("model_used", "Junior Analyst")
 
-    role_label = "CISO" if model_tag == "CISO" else "JUDGE"
+        role_label = "CISO" if model_tag == "CISO" else "JUDGE"
 
-    log_trace(event_id, role_label, "COMPLETED", {
-        "verdict": decision["decision"],
-        "confidence": decision.get("confidence", 100),
-        "reason": decision.get("reasoning")
-    })
+        log_trace(event_id, role_label, "COMPLETED", {
+            "verdict": decision["decision"],
+            "confidence": decision.get("confidence", 100),
+            "reason": decision.get("reasoning")
+        })
 
-    print(f" FINAL DECISION: {decision['decision']}")
-    print(f" REASON: {decision.get('reasoning', 'No Reasoning Provided')}")
+        print(f" FINAL DECISION: {decision['decision']}")
+        print(f" REASON: {decision.get('reasoning', 'No Reasoning Provided')}")
+
+    except Exception as e:
+        log_trace(event_id, "JUDGE", "FAILED", {"error": str(e)})
+        print(f" JUDGE: Failed to deliberate. Error: {e}")
+        return
 
     if decision["decision"] == "BLOCK":
         log_trace(event_id, "ENFORCER", "THINKING", {"msg": "Initiating Kill Switch..."})
