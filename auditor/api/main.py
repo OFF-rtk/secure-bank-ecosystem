@@ -1,8 +1,11 @@
 import os
 import json
+import hmac
+import hashlib
 import uvicorn
-from fastapi import FastAPI, BackgroundTasks, HTTPException, Request
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Request, Header
 from dotenv import load_dotenv
+from typing import Optional
 
 from agents import brain_triage, brain_intel, brain_judge, check_rate_limit, is_user_blacklisted, block_user_session
 from agents.utils import log_trace
@@ -10,6 +13,43 @@ from agents.utils import log_trace
 load_dotenv()
 
 app = FastAPI()
+
+# Supabase Webhook Secret for verifying requests
+SUPABASE_WEBHOOK_SECRET = os.getenv("SUPABASE_WEBHOOK_SECRET")
+
+
+def verify_webhook_request(payload: bytes, secret_header: str, signature_header: str, secret: str) -> bool:
+    """
+    Verify the webhook request came from Supabase.
+    Supports two methods:
+    1. Simple secret comparison (Supabase Database Webhooks)
+    2. HMAC-SHA256 signature verification
+    """
+    if not secret:
+        # Secret not configured - reject all requests
+        return False
+
+    # Method 1: Simple secret comparison (Supabase Database Webhooks)
+    if secret_header and hmac.compare_digest(secret_header, secret):
+        return True
+
+    # Method 2: HMAC-SHA256 signature verification
+    if signature_header:
+        expected_signature = hmac.new(
+            secret.encode('utf-8'),
+            payload,
+            hashlib.sha256
+        ).hexdigest()
+
+        # Handle 'sha256=<hex>' format
+        sig = signature_header[7:] if signature_header.startswith('sha256=') else signature_header
+
+        if hmac.compare_digest(expected_signature, sig):
+            return True
+
+    return False
+
+
 
 async def process_audit_log(log_entry: dict):
     """
@@ -108,13 +148,48 @@ def health_check():
     return {"status": "active", "service": "Sentinel Auditor"}
 
 @app.post("/webhook/audit")
-async def recieve_audit_log(request: Request, background_tasks: BackgroundTasks):
+async def recieve_audit_log(
+    request: Request, 
+    background_tasks: BackgroundTasks,
+    x_supabase_signature: Optional[str] = Header(None, alias="x-supabase-signature"),
+    x_webhook_secret: Optional[str] = Header(None, alias="x-webhook-secret")
+):
     """
     Supabase calls this whenever a new row is inserted into 'audit_logs'.
+    Verifies the request came from Supabase using either:
+    - x-webhook-secret header (simple secret match)
+    - x-supabase-signature header (HMAC-SHA256)
     """
 
+    # Get raw body for signature verification
+    body_bytes = await request.body()
+
+    # Verify the request is from Supabase (REQUIRED)
+    if not SUPABASE_WEBHOOK_SECRET:
+        print(" SECURITY: Webhook request rejected - SUPABASE_WEBHOOK_SECRET not configured")
+        raise HTTPException(status_code=500, detail="Webhook secret not configured")
+
+    # Check if at least one auth header is present
+    if not x_supabase_signature and not x_webhook_secret:
+        print(" SECURITY: Webhook request rejected - missing authentication header")
+        raise HTTPException(status_code=401, detail="Missing webhook authentication")
+    
+    if not verify_webhook_request(
+        payload=body_bytes, 
+        secret_header=x_webhook_secret or "", 
+        signature_header=x_supabase_signature or "", 
+        secret=SUPABASE_WEBHOOK_SECRET
+    ):
+        print(f" SECURITY: Webhook request rejected - invalid credentials")
+        print(f"   x-webhook-secret: {'present' if x_webhook_secret else 'missing'}")
+        print(f"   x-supabase-signature: {'present' if x_supabase_signature else 'missing'}")
+        raise HTTPException(status_code=401, detail="Invalid webhook credentials")
+    
+    print(" SECURITY: Webhook verified ✓")
+
+
     try:
-        body = await request.json()
+        body = json.loads(body_bytes)
 
         record = body.get('record', {})
         log_content = record.get('payload')
