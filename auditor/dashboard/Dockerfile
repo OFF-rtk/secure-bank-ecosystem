@@ -15,6 +15,13 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
+# Build args for Next.js public env vars (inlined at build time)
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+
 # Build the application
 RUN pnpm run build
 
